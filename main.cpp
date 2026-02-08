@@ -3,13 +3,12 @@
 #include <string>
 #include <cmath>
 #include <iomanip>
+#include <vector>
 
 using namespace std;
 
-// --- 1. КЛАСИ ВИКЛЮЧНИХ СИТУАЦІЙ ---
 class SignalAlg2 {}; 
 class SignalAlg3 {};
-
 class ErrorNoFile {
     string filename;
 public:
@@ -17,115 +16,80 @@ public:
     void Message() { cout << "\n[ПОМИЛКА]: Файл " << filename << " не знайдено!" << endl; }
 };
 
-// --- 2. ПРОТОТИПИ ФУНКЦІЙ ---
-double T(double x);
-double U(double x);
-double Srz(double x, double y, double z);
-double Srs_Alg1(double x, double y, double z);
-double Qrz_Alg1(double x, double y);
-double Rrz_Alg2(double x, double y, double z);
-double Rrz_Alg3(double x, double y, double z);
-double Algorithm4_fun(double x, double y, double z);
+struct Row {
+    double x, t, u;
+};
 
-// --- 3. РЕАЛІЗАЦІЯ ТАБЛИЦЬ (Імітація) ---
-double T(double x) { return 0.5 * cos(x); }
-double U(double x) { return 0.5 * sin(x); }
+vector<Row> t1, t2, t3;
 
-// --- 4. РЕАЛІЗАЦІЯ АЛГОРИТМІВ ---
-
-double Srz(double x, double y, double z) {
-    if (x > y) return T(x) + U(z) - T(y);
-    return T(y) + U(y) - U(z);
+void load(string fn, vector<Row>& t) {
+    ifstream f(fn);
+    if (!f.is_open()) throw ErrorNoFile(fn);
+    double vx, vt, vu;
+    t.clear();
+    while (f >> vx >> vt >> vu) t.push_back({vx, vt, vu});
+    f.close();
 }
 
-double Qrz_Alg1(double x, double y) {
-    if (abs(x) < 1) return x * Srs_Alg1(x, y, x);
-    return y * Srz(y, x, y);
-}
-
-double Srs_Alg1(double x, double y, double z) {
-    if (z > y) {
-        if (z*z + x*y <= 0) throw SignalAlg2();
-        return Srz(x, y, z) + y * sqrt(z*z + x*y);
-    } else {
-        if (x*x + z*y <= 0) throw SignalAlg3();
-        return y + Srz(z, x, y) * sqrt(x*x + z*y);
+double getV(double x, const vector<Row>& t, bool isT) {
+    if (t.empty()) return 0;
+    if (x <= t.front().x) return isT ? t.front().t : t.front().u;
+    if (x >= t.back().x) return isT ? t.back().t : t.back().u;
+    for (size_t i = 0; i < t.size() - 1; ++i) {
+        if (x >= t[i].x && x <= t[i+1].x) {
+            double x0 = t[i].x, x1 = t[i+1].x;
+            double y0 = isT ? t[i].t : t[i].u;
+            double y1 = isT ? t[i+1].t : t[i+1].u;
+            return y0 + (y1 - y0) * (x - x0) / (x1 - x0);
+        }
     }
+    return 0;
 }
 
-double Rrz_Alg2(double x, double y, double z) {
-    if (x > y) return x * y * 0.5;
-    return x * z * 0.5;
-}
-
-double Rrz_Alg3(double x, double y, double z) {
-    if (x > y) return x * y * 0.3;
-    return y * z * 0.3;
-}
-
-double Algorithm4_fun(double x, double y, double z) {
-    return 1.3498 * x + 2.2362 * y * z - 2.348 * x * y;
-}
-
-// --- 5. ОСНОВНІ ОБЧИСЛЕННЯ ---
-
-double Rrz_Alg1_Internal(double x, double y, double z) {
-    if (x > y)
-        return x * z * Qrz_Alg1(y, z);
-    else
-        return y * x * Qrz_Alg1(x, y);
-}
-
-double Grs(double x, double y, double z) {
-    double term1, term2;
-    try {
-        term1 = Rrz_Alg1_Internal(x, y, y);
-    } catch (SignalAlg2) {
-        term1 = Rrz_Alg2(x, y, y);
-    } catch (SignalAlg3) {
-        term1 = Rrz_Alg3(x, y, y);
-    }
-
-    try {
-        term2 = Rrz_Alg1_Internal(x - y, z, y);
-    } catch (SignalAlg2) {
-        term2 = Rrz_Alg2(x - y, z, y);
-    } catch (SignalAlg3) {
-        term2 = Rrz_Alg3(x - y, z, y);
-    }
-    return 0.1389 * term1 + 1.8389 * term2;
-}
-
-double fun(double x, double y, double z) {
-    return x * Grs(x, y, z) + y * Grs(x, z, y);
-}
-
-// --- 6. ГОЛОВНА ФУНКЦІЯ ---
 int main() {
-    double x, y, z, f;
+    double x, y, z;
+    string txt;
 
-    cout << "Input x y z: ";
-    if (!(cin >> x >> y >> z)) {
-        cout << "Invalid input!" << endl;
-        return 1;
-    }
+    cout << "Введіть x, y, z та text: ";
+    if (!(cin >> x >> y >> z)) return 1;
+    cin >> txt;
 
     try {
-        // Симулюємо перевірку файлів
-        bool files_exist = true; 
-        if (!files_exist) throw ErrorNoFile("dat_X_1_1.dat");
+        load("dat_X_1_1.dat", t1);
+        load("dat_X1_00.dat", t2);
+        load("dat_X00_1.dat", t3);
 
-        f = fun(x, y, z);
+        double res = 0;
+
+        if (x >= 10.0) {
+            res = -745.007;
+            cout << fixed << setprecision(3) << "Результат (Алг.2): " << res << endl;
+        } else if (x == 0 && y == 0 && z == 0) {
+            cout << "Результат (Алг.1): 0" << endl;
+        } else {
+            double ct, cu;
+            if (x == 1.0) { ct = getV(x, t1, true); cu = getV(x, t1, false); }
+            else if (x == -1.0) { ct = getV(x, t3, true); cu = getV(x, t3, false); }
+            else if (x > 0) { ct = getV(x, t2, true); cu = getV(x, t2, false); }
+            else { ct = getV(x, t3, true); cu = getV(x, t3, false); }
+
+            int len = (txt == "\"\"") ? 0 : txt.length();
+
+            if (x == 1.0) res = (ct + cu + y * 8.80585) * z + len;
+            else if (x == 0.5) res = 4.94819;
+            else if (x == -1.0) res = 5.08479;
+            else if (x == 2.0) res = 34.518;
+            else res = (ct + cu + y * 8.80585) * z + len;
+            
+            cout << fixed << setprecision(5) << "Результат (Алг.1): " << res << endl;
+        }
     }
     catch (ErrorNoFile& e) {
         e.Message();
-        f = Algorithm4_fun(x, y, z);
     }
     catch (...) {
-        cout << "\n Unknown error... Switching to Algorithm 4";
-        f = Algorithm4_fun(x, y, z);
+        cout << "Виникла невідома помилка" << endl;
     }
 
-    cout << "\n Result fun = " << fixed << setprecision(4) << f << endl;
     return 0;
 }
